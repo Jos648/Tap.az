@@ -23,11 +23,39 @@ tapaz/
 ├── utils/
 │   ├── jwt.js                 # JWT sign/verify
 │   ├── otp.js                 # OTP generasiyası, vaxt bitmə/cooldown hesablamaları
-│   └── validators.js          # Zod validasiya sxemləri
+│   ├── validators.js          # Zod validasiya sxemləri (auth)
+│   ├── apiError.js            # Statuskodlu xəta sinfi (items üçün)
+│   ├── asyncHandler.js        # Async route wrapper (items üçün)
+│   └── serializeItem.js       # Prisma Decimal -> number çevirmə (items üçün)
+├── services/
+│   └── item.service.js        # Elan CRUD-un Prisma məntiqi
+├── validators/
+│   └── item.validators.js     # Zod validasiya sxemləri (items)
 └── public/                    # Frontend (statik fayllar)
     ├── tapal.html
     ├── script.js
     └── style.css
+```
+
+## Elanlar (Items) modulu
+
+Bu layihə əvvəlcə ayrıca hazırlanmış `listing-data-backend-core` layihəsi ilə
+birləşdirilib. Elan CRUD-u indi auth sisteminə (JWT) bağlıdır:
+
+- `GET /api/items` — bütün elanları siyahılayır (açıq, giriş tələb olunmur). Dəstəklənən query
+  parametrləri: `search`, `category`, `status`, `minPrice`, `maxPrice`, `page`, `limit`, `sort`, `order`.
+- `GET /api/items/:id` — tək elanın detalı (açıq).
+- `POST /api/items` — yeni elan yaradır (**giriş tələb olunur**, `Authorization: Bearer <token>`).
+  Body: `title`, `description`, `price`, `category`, `location`, `images` (ən azı 3, ən çox 20 base64 şəkil).
+- `PATCH /api/items/:id` — elanı yeniləyir (**giriş + sahiblik tələb olunur**).
+- `DELETE /api/items/:id` — elanı silir (**giriş + sahiblik tələb olunur**).
+
+Birləşdirmədən sonra Prisma sxeminə `Item` modeli (və `ItemStatus` enum-u) əlavə
+olunub, `User` modelinə isə `items Item[]` relasiyası. **Bunu tətbiq etmək üçün DB-yə
+qoşulduğunuz mühitdə (öz serverinizdə) aşağıdakı əmri işlədin:**
+
+```bash
+npx prisma migrate dev --name add_items
 ```
 
 ## 1. Qurulum

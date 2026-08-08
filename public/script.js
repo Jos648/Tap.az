@@ -2,6 +2,7 @@
 // 1. DATA & API LAYER
 // ============================================================
 const API_BASE_URL = '/api/auth'; // Frontend backend ilə eyni serverdən (eyni origin) servis olunur
+const ITEMS_API_URL = '/api/items';
 
 const authService = {
   async login(email, password) {
@@ -44,31 +45,69 @@ const authService = {
   }
 };
 
+// Backend-dən gələn elanı frontend-in gözlədiyi görünüş formatına çevirir
+// (əsasən `createdAt`-dan insan-oxunaqlı `time` sahəsi yaradır).
+function mapItemFromApi(item) {
+  return { ...item, time: formatRelativeTime(item.createdAt) };
+}
+
+function formatRelativeTime(iso) {
+  if (!iso) return '';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'İndi';
+  if (diffMin < 60) return `${diffMin} dəq əvvəl`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} saat əvvəl`;
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 30) return `${diffDay} gün əvvəl`;
+  return new Date(iso).toLocaleDateString('az-AZ');
+}
+
 const listingsService = {
-  _listings: [],
   async getListings(filters = {}) {
-    await new Promise(r => setTimeout(r, 300));
-    let list = [...this._listings];
-    if (filters.category) list = list.filter(item => item.category === filters.category);
-    if (filters.search) list = list.filter(item => item.title.toLowerCase().includes(filters.search.toLowerCase()));
-    return { success: true, data: list };
+    try {
+      const params = new URLSearchParams();
+      if (filters.category) params.set('category', filters.category);
+      if (filters.search) params.set('search', filters.search);
+      const response = await fetch(`${ITEMS_API_URL}?${params.toString()}`);
+      const result = await response.json();
+      if (!result.success) return { success: false, message: result.message || 'Elanlar yüklənə bilmədi.' };
+      return { success: true, data: result.data.map(mapItemFromApi) };
+    } catch (error) {
+      return { success: false, message: 'Server bağlantı xətası.' };
+    }
   },
   async getListingById(id) {
-    await new Promise(r => setTimeout(r, 200));
-    const item = this._listings.find(l => l.id === parseInt(id));
-    return item ? { success: true, data: item } : { success: false, message: 'Elan tapılmadı.' };
+    try {
+      const response = await fetch(`${ITEMS_API_URL}/${id}`);
+      const result = await response.json();
+      if (!result.success) return { success: false, message: result.message || 'Elan tapılmadı.' };
+      return { success: true, data: mapItemFromApi(result.data) };
+    } catch (error) {
+      return { success: false, message: 'Server bağlantı xətası.' };
+    }
   },
   async createListing(data) {
-    await new Promise(r => setTimeout(r, 400));
-    const newId = this._listings.length + 1;
-    const newItem = { 
-      id: newId, 
-      ...data, 
-      time: 'İndi', 
-      owner: storage.getUserEmail() || 'istifadeci@gmail.com'
-    };
-    this._listings.unshift(newItem);
-    return { success: true, data: newItem };
+    try {
+      const token = storage.getToken();
+      const response = await fetch(ITEMS_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(data)
+      });
+      const result = await response.json();
+      if (!result.success) {
+        const detail = Array.isArray(result.errors) ? result.errors.map(e => e.message).join(' ') : '';
+        return { success: false, message: detail || result.message || 'Elan yerləşdirilə bilmədi.' };
+      }
+      return { success: true, data: mapItemFromApi(result.data) };
+    } catch (error) {
+      return { success: false, message: 'Server bağlantı xətası.' };
+    }
   }
 };
 
@@ -592,6 +631,8 @@ const postController = {
       previewContainer.style.display = 'none';
       this.selectedImagesBase64 = [];
       router.navigate('listings');
+    } else {
+      ui.showToast(res.message || 'Elan yerləşdirilə bilmədi.', 'danger');
     }
   }
 };

@@ -20,6 +20,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 
 const authRoutes = require('./routes/auth.routes');
+const itemRoutes = require('./routes/item.routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 // ==== ENV VALIDATION ====
@@ -67,10 +68,11 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json({ limit: '15mb' })); // şəkillər base64 kimi göndərilə bildiyi üçün limit artırılıb
+app.use(express.json({ limit: '50mb' })); // elanlarda 3-20 base64 şəkil göndərilə bildiyi üçün limit artırılıb
 
 // ==== API ROUTES ====
 app.use('/api/auth', authRoutes);
+app.use('/api/items', itemRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Server sağlamdır.', timestamp: new Date().toISOString() });
