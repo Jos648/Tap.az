@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TapAl - Oyun və Sosial Şəbəkə Hesabları</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <nav class="navbar" id="main-nav" style="display: none;">
+    <a href="#" class="navbar-brand" onclick="router.navigate('listings')">TapAl</a>
+    <div class="navbar-actions">
+      <button class="btn btn-secondary" onclick="router.navigate('post-listing')" aria-label="Elan Yerləşdir"><span class="btn-label">+ Elan Yerləşdir</span><span class="btn-icon" aria-hidden="true">＋</span></button>
+      <button class="btn btn-secondary" onclick="router.navigate('profile')" aria-label="Profil">Profil</button>
+      <button class="btn btn-secondary" onclick="router.navigate('settings')" aria-label="Ayarlar">⚙️</button>
+    </div>
+  </nav>
+
+  <section data-view="login">
+    <div class="auth-card">
+      <h1 class="auth-title">Daxil Ol</h1>
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label for="login-email">Gmail ünvanı</label>
+          <input type="email" id="login-email" class="form-control" placeholder="nümunə@gmail.com" required>
+          <div class="form-error" id="login-email-error">Düzgün Gmail ünvanı daxil edin.</div>
+        </div>
+        <div class="form-group">
+          <label for="login-password">Şifrə</label>
+          <input type="password" id="login-password" class="form-control" required>
+          <div class="form-error" id="login-password-error">Şifrə tələb olunur.</div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--sp-md);">Giriş</button>
+      </form>
+      <p style="text-align: center; margin-top: var(--sp-lg); font-size: 0.9rem;">
+        Hesabınız yoxdur? <a href="#" style="color: var(--primary); font-weight: 600;" onclick="router.navigate('register')">Qeydiyyatdan keçin</a>
+      </p>
+    </div>
+  </section>
+
+  <section data-view="register">
+    <div class="auth-card">
+      <h1 class="auth-title">Qeydiyyat</h1>
+      <form id="register-form" novalidate>
+        <div class="form-group">
+          <label for="register-username">İstifadəçi adı</label>
+          <input type="text" id="register-username" class="form-control" placeholder="istifadeci123" required>
+          <div class="form-error" id="register-username-error">İstifadəçi adı ən azı 3 simvol olmalıdır.</div>
+        </div>
+        <div class="form-group">
+          <label for="register-email">Gmail ünvanı</label>
+          <input type="email" id="register-email" class="form-control" placeholder="nümunə@gmail.com" required>
+          <div class="form-error" id="register-email-error">Düzgün Gmail ünvanı daxil edin.</div>
+        </div>
+        <div class="form-group">
+          <label for="register-password">Şifrə</label>
+          <input type="password" id="register-password" class="form-control" required>
+          <div class="form-error" id="register-password-error">Şifrə ən azı 6 simvoldan ibarət olmalıdır.</div>
+        </div>
+        <div class="form-group">
+          <label for="register-confirm">Şifrənin Təkrarı</label>
+          <input type="password" id="register-confirm" class="form-control" required>
+          <div class="form-error" id="register-confirm-error">Şifrələr uyğun gəlmir.</div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--sp-md);">Qeydiyyat</button>
+      </form>
+      <p style="text-align: center; margin-top: var(--sp-lg); font-size: 0.9rem;">
+        Artıq hesabınız var? <a href="#" style="color: var(--primary); font-weight: 600;" onclick="router.navigate('login')">Daxil olun</a>
+      </p>
+    </div>
+  </section>
+
+  <section data-view="otp-verify">
+    <div class="auth-card">
+      <h1 class="auth-title">Kodu Təsdiqlə</h1>
+      <p style="text-align: center; color: var(--text-muted); margin-bottom: var(--sp-md); font-size: 0.9rem;">
+        6 rəqəmli OTP kod Gmail ünvanınıza göndərildi.
+      </p>
+      <form id="otp-form" novalidate>
+        <div class="form-group">
+          <label for="otp-code">Təsdiq Kodu</label>
+          <input type="text" id="otp-code" class="form-control" placeholder="123456" maxlength="6" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;" required>
+          <div class="form-error" id="otp-code-error">Düzgün 6 rəqəmli kod daxil edin.</div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--sp-md);">Təsdiqlə</button>
+      </form>
+      <p style="text-align: center; margin-top: var(--sp-lg); font-size: 0.9rem;">
+        Kod gəlmədi? <button id="otp-resend-btn" style="color: var(--primary); font-weight: 600; border:none; background:none; padding:0; cursor:pointer;" onclick="authController.resendOTP()" disabled>Yenidən göndər (<span id="otp-cooldown">30</span>s)</button>
+      </p>
+    </div>
+  </section>
+
+  <section data-view="listings">
+    <div class="search-wrapper">
+      <input type="search" id="search-input" class="form-control" placeholder="Hesab və ya kateqoriya axtarın..." aria-label="Axtarış">
+    </div>
+    <div class="category-scroll" id="category-container"></div>
+    <div class="listing-grid" id="listings-grid"></div>
+  </section>
+
+  <section data-view="listing-detail" id="listing-detail-view"></section>
+
+  <section data-view="post-listing">
+    <h1 style="font-size: 1.75rem; font-weight: 700; margin-bottom: var(--sp-lg);">Yeni Elan Yerləşdir</h1>
+    <form id="post-form" novalidate style="background-color: var(--bg-surface); padding: var(--sp-lg); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
+      <div class="form-group">
+        <label for="post-title">Elanın Başlığı</label>
+        <input type="text" id="post-title" class="form-control" placeholder="Məs. 70 Level Old Pubg Hesabı" required minlength="5">
+        <div class="form-error">Başlıq ən azı 5 simvoldan ibarət olmalıdır.</div>
+      </div>
+      <div class="form-group">
+        <label for="post-category">Kateqoriya</label>
+        <select id="post-category" class="form-control" required>
+          <option value="">Kateqoriya seçin</option>
+          <option value="brawl-stars">Brawl Stars</option>
+          <option value="pubg">PUBG Mobile</option>
+          <option value="free-fire">Free Fire</option>
+          <option value="tiktok">TikTok Hesabı</option>
+          <option value="instagram">Instagram Hesabı</option>
+          <option value="efootball">eFootball Hesabı</option>
+          <option value="elim-yandi">Əlim Yandı</option>
+        </select>
+        <div class="form-error">Zəhmət olmasa kateqoriya seçin.</div>
+      </div>
+      <div class="form-group">
+        <label for="post-price">Qiymət (AZN)</label>
+        <input type="number" id="post-price" class="form-control" required min="1">
+        <div class="form-error">Düzgün qiymət daxil edin.</div>
+      </div>
+
+      <div class="form-group">
+        <label>Şəkillər (Ən az 3, ən çox 20 şəkil)</label>
+        <label for="post-images" class="gallery-upload-btn">
+          <span style="font-size: 2rem;">🖼️</span>
+          <span id="upload-btn-text">Qalereyadan Şəkilləri Seçin</span>
+        </label>
+        <input type="file" id="post-images" accept="image/*" multiple style="display: none;">
+        <div class="form-error" id="post-images-error">Zehmet Olmasa En az 3 şekil atın</div>
+        <div class="image-preview-container" id="image-preview-container" style="display: none;"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="post-description">Təsvir</label>
+        <textarea id="post-description" class="form-control" rows="5" placeholder="Hesab barədə ətraflı məlumat yazın (Skinlər, izləyici sayı və s.)" required minlength="20"></textarea>
+        <div class="form-error">Təsvir çox qısadır (min. 20 simvol).</div>
+      </div>
+      <div class="form-group">
+        <label for="post-location">Şəhər / Region</label>
+        <input type="text" id="post-location" class="form-control" placeholder="Məs. Bakı" required>
+        <div class="form-error">Məkan daxil edin.</div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width: 100%;">Dərc et</button>
+    </form>
+  </section>
+
+  <section data-view="profile">
+    <div class="profile-header">
+      <div class="avatar" id="profile-avatar">U</div>
+      <div>
+        <h2 id="profile-email" style="font-size: 1.25rem; font-weight: 700;">istifadeci@gmail.com</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Sizin Elanlarınız</p>
+      </div>
+    </div>
+    <div class="listing-grid" id="user-listings-grid"></div>
+  </section>
+
+  <section data-view="settings">
+    <h1 style="font-size: 1.75rem; font-weight: 700; margin-bottom: var(--sp-lg);">Ayarlar</h1>
+    <div style="background-color: var(--bg-surface); padding: var(--sp-lg); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: var(--sp-lg);">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 style="font-size: 1.1rem; font-weight: 600;">Tünd Rejim</h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Gözləri qorumaq üçün interfeysi qaranlıq edin</p>
+        </div>
+        <button class="btn btn-secondary" id="theme-toggle" onclick="ui.toggleTheme()">Aktivləşdir</button>
+      </div>
+      <hr style="border: 0; border-top: 1px solid var(--border-color);">
+      <button class="btn btn-primary" onclick="authController.logout()" style="background-color: var(--danger); max-width: 150px;">Çıxış Yap</button>
+    </div>
+  </section>
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+  <script src="script.js"></script>
+</body>
+</html>
