@@ -1,5 +1,7 @@
 const { z } = require('zod');
 
+const stripTags = (val) => (typeof val === 'string' ? val.replace(/[<>]/g, '') : val);
+
 // Yalnız @gmail.com ünvanlarına icazə verilir (frontend qaydası ilə uyğunlaşdırılıb)
 const gmailSchema = z
   .string({ required_error: 'E-poçt tələb olunur.' })
@@ -10,28 +12,17 @@ const gmailSchema = z
     message: 'Yalnız Gmail ünvanlarına icazə verilir.',
   });
 
-// İstifadəçi adında HTML/skript inyeksiyasına imkan verə biləcək simvollara
-// (< > " ' &) icazə verilmir — server-side ilk müdafiə xətti, frontend-dəki
-// escapeHtml() ikinci qatdır.
-const usernameSchema = z
-  .string({ required_error: 'İstifadəçi adı tələb olunur.' })
-  .trim()
-  .min(3, 'İstifadəçi adı ən azı 3 simvol olmalıdır.')
-  .max(30, 'İstifadəçi adı 30 simvoldan çox ola bilməz.')
-  .regex(/^[^<>"'&]*$/, 'İstifadəçi adında < > " \' & simvollarına icazə verilmir.');
-
-const passwordSchema = z
-  .string({ required_error: 'Şifrə tələb olunur.' })
-  .min(8, 'Şifrə ən azı 8 simvoldan ibarət olmalıdır.')
-  .max(72, 'Şifrə 72 simvoldan çox ola bilməz.') // bcrypt 72 baytdan sonrasını görməzdən gəlir
-  .regex(/[a-z]/, 'Şifrədə ən azı bir kiçik hərf olmalıdır.')
-  .regex(/[A-Z]/, 'Şifrədə ən azı bir böyük hərf olmalıdır.')
-  .regex(/[0-9]/, 'Şifrədə ən azı bir rəqəm olmalıdır.');
-
 const registerSchema = z.object({
-  username: usernameSchema,
+  username: z
+    .string({ required_error: 'İstifadəçi adı tələb olunur.' })
+    .trim()
+    .min(3, 'İstifadəçi adı ən azı 3 simvol olmalıdır.')
+    .max(30, 'İstifadəçi adı 30 simvoldan çox ola bilməz.')
+    .transform(stripTags),
   email: gmailSchema,
-  password: passwordSchema,
+  password: z
+    .string({ required_error: 'Şifrə tələb olunur.' })
+    .min(6, 'Şifrə ən azı 6 simvoldan ibarət olmalıdır.'),
 });
 
 const loginSchema = z.object({

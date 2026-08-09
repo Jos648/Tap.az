@@ -18,7 +18,6 @@ require('dotenv').config({ path: ENV_PATH });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/auth.routes');
 const itemRoutes = require('./routes/item.routes');
@@ -54,9 +53,26 @@ REQUIRED_ENV_VARS.forEach((key) => console.log(`[env] ${key}: configured`));
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Frontend ilə eyni serverdən statik fayl servis edildiyi üçün CSP-ni sadələşdiririk
-// (inline onclick handler-ləri və inline style atributları HTML-də istifadə olunur)
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+// Frontend ilə eyni serverdən statik fayl servis edildiyi üçün CSP elə tənzimlənir ki,
+// inline onclick handler-ləri və inline style atributları işləsin, amma xarici mənbələrdən
+// skript/iframe yüklənməsi və s. yenə də bloklansın (XSS-ə qarşı dərinləşdirilmiş müdafiə).
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      mediaSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+}));
 
 // CORS_ORIGINS .env-də veriləcək (vergüllə ayrılmış). Yoxdursa, development üçün fallback istifadə olunur
 // ki, mövcud frontend işləməyi dayandırmasın.
@@ -71,18 +87,6 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '50mb' })); // elanlarda 3-20 base64 şəkil göndərilə bildiyi üçün limit artırılıb
-
-// ==== GLOBAL RATE LIMIT ====
-// Bütün /api/* endpointləri üçün ümumi qat qorunma (spesifik auth limiter-lərə əlavə olaraq).
-// Auth route-larında daha sərt, spesifik limiter-lər artıq tətbiq olunub (bax: routes/auth.routes.js).
-const globalApiLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // default 15 dəqiqə
-  max: parseInt(process.env.RATE_LIMIT_MAX || '300', 10), // default 300 sorğu / pəncərə
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: 'Çox sayda sorğu göndərildi. Zəhmət olmasa bir az sonra yenidən cəhd edin.' },
-});
-app.use('/api', globalApiLimiter);
 
 // ==== API ROUTES ====
 app.use('/api/auth', authRoutes);

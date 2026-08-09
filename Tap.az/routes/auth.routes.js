@@ -5,9 +5,8 @@ const authController = require('../controllers/auth.controller');
 const { requireAuth } = require('../middleware/auth.middleware');
 const {
   loginLimiter,
-  registerLimiter,
   otpVerifyLimiter,
-  otpResendLimiter,
+  otpRequestLimiter,
 } = require('../middleware/rateLimit.middleware');
 const {
   validate,
@@ -18,7 +17,7 @@ const {
 } = require('../utils/validators');
 
 // POST /api/auth/register  -> Qeydiyyat, OTP göndərilir
-router.post('/register', registerLimiter, validate(registerSchema), authController.register);
+router.post('/register', otpRequestLimiter, validate(registerSchema), authController.register);
 
 // POST /api/auth/login  -> Giriş, JWT token qaytarır
 router.post('/login', loginLimiter, validate(loginSchema), authController.login);
@@ -27,7 +26,7 @@ router.post('/login', loginLimiter, validate(loginSchema), authController.login)
 router.post('/verify-otp', otpVerifyLimiter, validate(verifyOtpSchema), authController.verifyOtp);
 
 // POST /api/auth/resend-otp  -> Yeni OTP kodunun göndərilməsi (cooldown ilə)
-router.post('/resend-otp', otpResendLimiter, validate(resendOtpSchema), authController.resendOtp);
+router.post('/resend-otp', otpRequestLimiter, validate(resendOtpSchema), authController.resendOtp);
 
 // GET /api/auth/me  -> Cari istifadəçinin məlumatları (qorunan endpoint)
 router.get('/me', requireAuth, authController.me);

@@ -10,7 +10,7 @@ const create = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: 'Elanınız uğurla yerləşdirildi!',
-    data: serializeItem(item),
+    data: serializeItem(item, true), // öz elanını yaradan həmişə tam datanı görür
   });
 });
 
@@ -21,7 +21,7 @@ const getAll = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    data: serializeItems(items),
+    data: serializeItems(items, !!req.user),
     pagination,
   });
 });
@@ -32,7 +32,7 @@ const getOne = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    data: serializeItem(item),
+    data: serializeItem(item, !!req.user),
   });
 });
 
@@ -43,7 +43,7 @@ const update = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Elan yeniləndi.',
-    data: serializeItem(item),
+    data: serializeItem(item, true),
   });
 });
 
@@ -54,7 +54,7 @@ const remove = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Elan silindi.',
-    data: serializeItem(item),
+    data: serializeItem(item, true),
   });
 });
 

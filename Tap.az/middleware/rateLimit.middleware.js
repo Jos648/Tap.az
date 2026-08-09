@@ -1,54 +1,78 @@
 const rateLimit = require('express-rate-limit');
 
-/**
- * Bütün limiter-lər IP əsaslıdır. `standardHeaders: true` ilə client-ə
- * RateLimit-* header-ləri göndərilir, `legacyHeaders: false` ilə köhnə
- * X-RateLimit-* header-ləri deaktiv edilir.
- *
- * Qeyd: tək instansda işləyən server üçün in-memory store kifayətdir.
- * Server bir neçə instansda (məs. Railway-də horizontal scale) işləyəcəksə,
- * `rate-limit-redis` kimi paylaşılan store istifadə olunmalıdır, əks halda
- * hər instans öz limitini ayrıca sayır.
- */
+const jsonRateLimitHandler = (req, res) => {
+  res.status(429).json({
+    success: false,
+    message: 'Çox sayda cəhd edildi. Zəhmət olmasa bir az sonra yenidən cəhd edin.',
+  });
+};
 
-// POST /api/auth/login — brute-force şifrə hücumlarına qarşı
+// Login: parolla 6 rəqəmli OTP kimi məhdud fəza olmadığından daha yumşaq,
+// amma yenə də brute-force-un qarşısını alacaq qədər sərt.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 dəqiqə
-  max: 10, // 15 dəqiqədə eyni IP-dən maksimum 10 cəhd
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: 'Çox sayda uğursuz giriş cəhdi. Zəhmət olmasa 15 dəqiqə sonra yenidən cəhd edin.' },
-  // Uğurlu girişlər limiti sıfırlamır — brute-force ardıcıl uğursuz cəhdlərlə
-  // baş verdiyi üçün skipSuccessfulRequests istifadə OLUNMUR (default: bütün cəhdlər sayılır).
-});
-
-// POST /api/auth/register — kütləvi hesab yaratma / e-poçt bombalamanın qarşısını alır
-const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 saat
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: 'Çox sayda qeydiyyat cəhdi. Zəhmət olmasa 1 saat sonra yenidən cəhd edin.' },
-});
-
-// POST /api/auth/verify-otp — OTP kod brute-force-una qarşı (6 rəqəm = 1 milyon kombinasiya,
-// limitsiz cəhdlə asanlıqla sınana bilər)
-const otpVerifyLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 dəqiqə
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Çox sayda uğursuz kod cəhdi. Zəhmət olmasa bir az sonra yenidən cəhd edin.' },
+  handler: jsonRateLimitHandler,
+  keyGenerator: (req) => `${req.ip}:${(req.body?.email || '').toLowerCase()}`,
 });
 
-// POST /api/auth/resend-otp — əlavə qat qorunma (özündə artıq DB-based cooldown var,
-// amma bu, cooldown yoxlaması özü ilə bağlı DB sorğularının da spam edilməsinin qarşısını alır)
-const otpResendLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 dəqiqə
-  max: 5,
+// OTP təsdiqi: 6 rəqəmli kod cəmi 1.000.000 kombinasiyadır — rate limit olmadan
+// brute-force ilə tapıla bilər. Bura ən sərt limit qoyulur.
+const otpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Çox sayda kod tələbi. Zəhmət olmasa bir az sonra yenidən cəhd edin.' },
+  handler: jsonRateLimitHandler,
+  keyGenerator: (req) => `${req.ip}:${(req.body?.email || '').toLowerCase()}`,
 });
 
-module.exports = { loginLimiter, registerLimiter, otpVerifyLimiter, otpResendLimiter };
+// Qeydiyyat / OTP yenidən göndərmə: email-bombing-in qarşısını alır
+// (server qatında da cooldown var, bu əlavə IP-səviyyəli qorumadır).
+const otpRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 6,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonRateLimitHandler,
+});
+
+// Elan yaratma: spam elanların qarşısını alır.
+const itemCreateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 saat
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonRateLimitHandler,
+});
+
+// Rəy göndərmə: rəy spam-ının qarşısını alır.
+const reviewCreateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonRateLimitHandler,
+});
+
+// İctimai oxuma (elan siyahısı/detalı, satıcı rəyləri): normal istifadəçi
+// üçün kifayət qədər yüksək, amma bulk scraping bot-larını (məs. bütün
+// elanları/nömrələri tez-tez yığmaq) yavaşlatmaq üçün limit qoyulur.
+const publicReadLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 dəqiqə
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: jsonRateLimitHandler,
+});
+
+module.exports = {
+  loginLimiter,
+  otpVerifyLimiter,
+  otpRequestLimiter,
+  itemCreateLimiter,
+  reviewCreateLimiter,
+  publicReadLimiter,
+};
