@@ -1,0 +1,82 @@
+// TapAl - Prisma Schema
+// Run `npx prisma migrate dev --name init` after configuring DATABASE_URL and DIRECT_URL in .env
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String
+  email        String   @unique
+  password     String
+
+  isVerified   Boolean  @default(false)
+
+  otpCode      String?
+  otpExpiresAt DateTime?
+  otpResendAt  DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  items           Item[]
+  reviewsReceived Review[] @relation("SellerReviews")
+  reviewsGiven    Review[] @relation("ReviewerReviews")
+
+  @@map("users")
+}
+
+enum ItemStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  SOLD
+}
+
+model Item {
+  id          Int        @id @default(autoincrement())
+  title       String     @db.VarChar(200)
+  description String?    @db.VarChar(2000)
+  price       Decimal    @db.Decimal(12, 2)
+  category    String     @db.VarChar(100)
+  phone       String     @db.VarChar(30)
+  images      String[]   @default([])
+  videos      String[]   @default([])
+  status      ItemStatus @default(ACTIVE)
+  viewCount   Int        @default(0)
+
+  ownerId Int?
+  owner   User? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+  @@map("items")
+}
+
+model Review {
+  id      Int     @id @default(autoincrement())
+  rating  Int     @db.SmallInt
+  comment String? @db.VarChar(500)
+
+  sellerId Int
+  seller   User @relation("SellerReviews", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  reviewerId Int?
+  reviewer   User? @relation("ReviewerReviews", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([sellerId])
+  @@map("reviews")
+}
