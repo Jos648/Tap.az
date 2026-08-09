@@ -31,7 +31,15 @@ function errorHandler(err, req, res, next) {
   }
 
   const status = err.status || 500;
-  const message = err.message || 'Serverdə daxili xəta baş verdi.';
+
+  // Production-da gözlənilməz (500) xətaların daxili mesajı client-ə göndərilmir —
+  // DB bağlantı sətri, fayl yolları, stack detalları kimi məlumatlar sıza bilər.
+  // Development-də debug asanlığı üçün əsl mesaj saxlanılır.
+  const isProd = process.env.NODE_ENV === 'production';
+  const message = status === 500 && isProd
+    ? 'Serverdə daxili xəta baş verdi.'
+    : (err.message || 'Serverdə daxili xəta baş verdi.');
+
   res.status(status).json({ success: false, message });
 }
 

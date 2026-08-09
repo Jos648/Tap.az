@@ -1,4 +1,46 @@
 // ============================================================
+// 0. SECURITY HELPERS
+// ============================================================
+// Server-dən gələn istənilən istifadəçi məlumatı (title, description, username,
+// comment və s.) HTML-ə yazılmazdan əvvəl MÜTLƏQ bu funksiyalardan keçməlidir.
+// Əks halda stored XSS mümkündür (məs. elan başlığına <img onerror=...> yazmaqla).
+
+// Adi mətn/atribut kontekstləri üçün (məs. innerHTML daxilində mətn, və ya
+// çift-dırnaqlı HTML atributunun dəyəri: src="${escapeHtml(x)}").
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Inline onclick="...('${x}')" kimi HTML atributu İÇİNDƏ olan tək-dırnaqlı
+// JS string literalına dəyər yerləşdirmək üçün. Həm JS-string, həm də HTML-attribute
+// kontekstindən qaçış tələb olunduğu üçün escapeHtml-dən fərqli işləyir.
+function escapeForInlineHandler(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, '')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Yalnız http(s) ilə başlayan və ya data:image/ ilə başlayan mənbələrə icazə verir
+// (javascript: kimi təhlükəli URI sxemlərinin src/href-ə düşməsinin qarşısını alır).
+function sanitizeMediaUrl(url) {
+  const value = String(url ?? '').trim();
+  if (/^https?:\/\//i.test(value) || /^data:image\//i.test(value)) return value;
+  return '';
+}
+
+// ============================================================
 // 1. DATA & API LAYER
 // ============================================================
 const API_BASE_URL = '/api/auth'; // Frontend backend ilə eyni serverdən (eyni origin) servis olunur
@@ -482,23 +524,25 @@ const listingsController = {
     DRAFT: { label: 'Qaralama', cls: 'status-draft' }
   },
   createCardHtml(l, isOwner = false) {
-    const mainImg = (l.images && l.images.length > 0) ? l.images[0] : 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=500&auto=format&fit=crop&q=60';
+    const rawImg = (l.images && l.images.length > 0) ? l.images[0] : 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=500&auto=format&fit=crop&q=60';
+    const mainImg = sanitizeMediaUrl(rawImg) || 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=500&auto=format&fit=crop&q=60';
+    const safeId = Number(l.id) || 0; // id həmişə rəqəm olmalıdır, template-ə string kimi düşməsin
     const status = this.statusMeta[l.status] || this.statusMeta.ACTIVE;
     const deleteBtn = isOwner
-      ? `<button class="listing-card-delete" title="Elanı sil" aria-label="Elanı sil" onclick="event.stopPropagation(); listingsController.deleteListing(${l.id})">✕</button>`
+      ? `<button class="listing-card-delete" title="Elanı sil" aria-label="Elanı sil" onclick="event.stopPropagation(); listingsController.deleteListing(${safeId})">✕</button>`
       : '';
     const verifiedTag = l.ownerVerified ? `<span class="verified-badge-sm" title="Yoxlanılmış istifadəçi">✓</span>` : '';
     return `
-      <div class="listing-card" onclick="router.navigate('listing-detail', ${l.id})">
-        <span class="status-badge listing-card-badge ${status.cls}">${status.label}</span>
+      <div class="listing-card" onclick="router.navigate('listing-detail', ${safeId})">
+        <span class="status-badge listing-card-badge ${status.cls}">${escapeHtml(status.label)}</span>
         ${deleteBtn}
-        <img class="listing-card-img" src="${mainImg}" alt="${l.title}" loading="lazy">
+        <img class="listing-card-img" src="${escapeHtml(mainImg)}" alt="${escapeHtml(l.title)}" loading="lazy">
         <div class="listing-card-content">
-          <div class="listing-card-price">${l.price} AZN</div>
-          <div class="listing-card-title">${verifiedTag} ${l.title}</div>
+          <div class="listing-card-price">${escapeHtml(l.price)} AZN</div>
+          <div class="listing-card-title">${verifiedTag} ${escapeHtml(l.title)}</div>
           <div class="listing-card-meta">
-            <span>👁 ${l.viewCount ?? 0}</span>
-            <span>${l.time}</span>
+            <span>👁 ${escapeHtml(l.viewCount ?? 0)}</span>
+            <span>${escapeHtml(l.time)}</span>
           </div>
         </div>
       </div>
@@ -525,17 +569,18 @@ const listingsController = {
     const res = await listingsService.getListingById(id);
     if (res.success) {
       const l = res.data;
-      const images = l.images || [];
-      
-      const videos = l.videos || [];
+      const safeId = Number(l.id) || 0;
+      const safeOwnerId = Number(l.ownerId) || 0;
+      const images = (l.images || []).map(sanitizeMediaUrl).filter(Boolean);
+      const videos = (l.videos || []).map(sanitizeMediaUrl).filter(Boolean);
       let galleryHtml = '';
       if (images.length > 0) {
         galleryHtml = `
           <div class="gallery-container">
-            <img id="detail-main-view" class="main-detail-img" src="${images[0]}" alt="${l.title}" onclick="listingsController.openLightbox(this.src)">
+            <img id="detail-main-view" class="main-detail-img" src="${escapeHtml(images[0])}" alt="${escapeHtml(l.title)}" onclick="listingsController.openLightbox(this.src)">
             <div class="thumbnail-scroll">
               ${images.map((img, idx) => `
-                <img class="thumb-img ${idx === 0 ? 'active' : ''}" src="${img}" onclick="listingsController.switchDetailImage(this, '${img}')" alt="">
+                <img class="thumb-img ${idx === 0 ? 'active' : ''}" src="${escapeHtml(img)}" onclick="listingsController.switchDetailImage(this, '${escapeForInlineHandler(img)}')" alt="">
               `).join('')}
             </div>
           </div>
@@ -546,7 +591,7 @@ const listingsController = {
 
       const videosHtml = videos.length > 0
         ? `<div class="video-preview-container" style="margin-top: var(--sp-md);">
-            ${videos.map(v => `<video class="preview-video" src="${v}" controls style="width: 200px; height: 130px;"></video>`).join('')}
+            ${videos.map(v => `<video class="preview-video" src="${escapeHtml(v)}" controls style="width: 200px; height: 130px;"></video>`).join('')}
           </div>`
         : '';
 
@@ -554,7 +599,7 @@ const listingsController = {
       const currentUserEmail = storage.getUserEmail();
       const isOwner = currentUserEmail && l.owner === currentUserEmail;
       const deleteBtnHtml = isOwner
-        ? `<button class="btn btn-primary" style="width:100%; background-color: var(--danger); margin-top: var(--sp-sm);" onclick="listingsController.deleteFromDetail(${l.id})">Elanı Sil</button>`
+        ? `<button class="btn btn-primary" style="width:100%; background-color: var(--danger); margin-top: var(--sp-sm);" onclick="listingsController.deleteFromDetail(${safeId})">Elanı Sil</button>`
         : '';
       const verifiedBadge = l.ownerVerified
         ? `<span class="verified-badge" title="Yoxlanılmış istifadəçi">✓ Yoxlanılmış</span>`
@@ -568,33 +613,33 @@ const listingsController = {
             ${galleryHtml}
             ${videosHtml}
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-top: var(--sp-md); gap: var(--sp-sm);">
-              <h1 style="font-size: 1.5rem; font-weight: 700;">${l.title}</h1>
-              <button class="btn btn-secondary" style="flex-shrink:0;" onclick="listingsController.shareListing(${l.id}, '${l.title.replace(/'/g, "\\'")}')" aria-label="Paylaş">📤 Paylaş</button>
+              <h1 style="font-size: 1.5rem; font-weight: 700;">${escapeHtml(l.title)}</h1>
+              <button class="btn btn-secondary" style="flex-shrink:0;" onclick="listingsController.shareListing(${safeId}, '${escapeForInlineHandler(l.title)}')" aria-label="Paylaş">📤 Paylaş</button>
             </div>
-            <p style="font-size:0.8rem; color:var(--text-muted);">👁 ${l.viewCount ?? 0} baxış</p>
-            <p style="margin-top: var(--sp-md); white-space: pre-line;">${l.description}</p>
+            <p style="font-size:0.8rem; color:var(--text-muted);">👁 ${escapeHtml(l.viewCount ?? 0)} baxış</p>
+            <p style="margin-top: var(--sp-md); white-space: pre-line;">${escapeHtml(l.description)}</p>
           </div>
           <div class="detail-info">
-            <span class="status-badge ${status.cls}" style="width: fit-content;">${status.label}</span>
-            <div class="detail-price">${l.price} AZN</div>
+            <span class="status-badge ${status.cls}" style="width: fit-content;">${escapeHtml(status.label)}</span>
+            <div class="detail-price">${escapeHtml(l.price)} AZN</div>
             <div style="font-size: 0.9rem; color: var(--text-muted);">
-              <p>Kateqoriya: <strong>${this.categories.find(c => c.id === l.category)?.label || l.category}</strong></p>
-              <p>Tarix: ${l.time}</p>
+              <p>Kateqoriya: <strong>${escapeHtml(this.categories.find(c => c.id === l.category)?.label || l.category)}</strong></p>
+              <p>Tarix: ${escapeHtml(l.time)}</p>
             </div>
             <hr style="border:0; border-top:1px solid var(--border-color)">
             <div>
               <p style="font-weight:600; font-size:0.875rem; color:var(--text-muted)">ELAN SAHİBİ</p>
-              <p style="font-size:1.1rem; font-weight:700; margin-bottom:var(--sp-sm); display:flex; align-items:center; gap:6px;">${l.ownerUsername || l.owner} ${verifiedBadge}</p>
+              <p style="font-size:1.1rem; font-weight:700; margin-bottom:var(--sp-sm); display:flex; align-items:center; gap:6px;">${escapeHtml(l.ownerUsername || l.owner)} ${verifiedBadge}</p>
               <div id="seller-rating-summary" style="margin-bottom:var(--sp-sm); font-size:0.85rem; color:var(--text-muted);">Rəylər yüklənir...</div>
               <p style="font-weight:600; font-size:0.875rem; color:var(--text-muted)">TELEFON</p>
-              <p style="font-size:1.1rem; font-weight:700; margin-bottom:var(--sp-sm);">${l.phone || '-'}</p>
-              <a href="tel:${l.phone}" class="btn btn-primary" style="width:100%;">📞 Zəng Et</a>
-              <a href="https://wa.me/${waNumber}?text=${waText}" target="_blank" rel="noopener" class="btn btn-whatsapp" style="width:100%; margin-top: var(--sp-sm);">WhatsApp ilə yaz</a>
+              <p style="font-size:1.1rem; font-weight:700; margin-bottom:var(--sp-sm);">${escapeHtml(l.phone || '-')}</p>
+              <a href="tel:${encodeURIComponent(l.phone || '')}" class="btn btn-primary" style="width:100%;">📞 Zəng Et</a>
+              <a href="https://wa.me/${encodeURIComponent(waNumber)}?text=${waText}" target="_blank" rel="noopener" class="btn btn-whatsapp" style="width:100%; margin-top: var(--sp-sm);">WhatsApp ilə yaz</a>
               ${deleteBtnHtml}
             </div>
           </div>
         </div>
-        <div class="reviews-section" id="reviews-section" data-seller-id="${l.ownerId}">
+        <div class="reviews-section" id="reviews-section" data-seller-id="${safeOwnerId}">
           <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:var(--sp-md);">Satıcı Rəyləri</h2>
           <div id="reviews-list">Yüklənir...</div>
           ${!isOwner ? `
@@ -604,7 +649,7 @@ const listingsController = {
               ${[1,2,3,4,5].map(n => `<span class="star-choice" data-value="${n}" onclick="listingsController.setReviewRating(${n})">☆</span>`).join('')}
             </div>
             <textarea id="review-comment" class="form-control" rows="2" placeholder="Rəyiniz (istəyə bağlı)" style="margin-top:var(--sp-sm);"></textarea>
-            <button class="btn btn-primary" style="margin-top:var(--sp-sm);" onclick="listingsController.submitReview(${l.ownerId})">Göndər</button>
+            <button class="btn btn-primary" style="margin-top:var(--sp-sm);" onclick="listingsController.submitReview(${safeOwnerId})">Göndər</button>
           </div>` : ''}
         </div>
       `;
@@ -657,10 +702,10 @@ const listingsController = {
         ? res.data.map(r => `
             <div class="review-item">
               <div style="display:flex; justify-content:space-between;">
-                <strong>${r.reviewerUsername}</strong>
+                <strong>${escapeHtml(r.reviewerUsername)}</strong>
                 <span style="color:#f5a623;">${renderStars(r.rating)}</span>
               </div>
-              ${r.comment ? `<p style="margin-top:4px; font-size:0.9rem;">${r.comment}</p>` : ''}
+              ${r.comment ? `<p style="margin-top:4px; font-size:0.9rem;">${escapeHtml(r.comment)}</p>` : ''}
             </div>
           `).join('')
         : '<p style="color:var(--text-muted);">Hələ rəy yoxdur. İlk rəyi siz yazın!</p>';

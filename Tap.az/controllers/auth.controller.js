@@ -4,7 +4,9 @@ const { sendOtpEmail } = require('../config/mailer');
 const { signToken } = require('../utils/jwt');
 const { generateOtpCode, getOtpExpiry, getOtpResendAvailableAt } = require('../utils/otp');
 
-const SALT_ROUNDS = 10;
+// .env-də SALT_ROUNDS təyin olunmayıbsa 12 istifadə olunur (10-dan daha güclü,
+// müasir hardware üçün OWASP tövsiyəsinə uyğun minimum).
+const SALT_ROUNDS = parseInt(process.env.SALT_ROUNDS || '12', 10);
 
 // POST /api/auth/register
 async function register(req, res, next) {

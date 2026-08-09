@@ -18,6 +18,7 @@ require('dotenv').config({ path: ENV_PATH });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/auth.routes');
 const itemRoutes = require('./routes/item.routes');
@@ -70,6 +71,18 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '50mb' })); // elanlarda 3-20 base64 şəkil göndərilə bildiyi üçün limit artırılıb
+
+// ==== GLOBAL RATE LIMIT ====
+// Bütün /api/* endpointləri üçün ümumi qat qorunma (spesifik auth limiter-lərə əlavə olaraq).
+// Auth route-larında daha sərt, spesifik limiter-lər artıq tətbiq olunub (bax: routes/auth.routes.js).
+const globalApiLimiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // default 15 dəqiqə
+  max: parseInt(process.env.RATE_LIMIT_MAX || '300', 10), // default 300 sorğu / pəncərə
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Çox sayda sorğu göndərildi. Zəhmət olmasa bir az sonra yenidən cəhd edin.' },
+});
+app.use('/api', globalApiLimiter);
 
 // ==== API ROUTES ====
 app.use('/api/auth', authRoutes);
