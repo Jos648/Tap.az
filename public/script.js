@@ -70,6 +70,7 @@ const listingsService = {
       const params = new URLSearchParams();
       if (filters.category) params.set('category', filters.category);
       if (filters.search) params.set('search', filters.search);
+      if (filters.status) params.set('status', filters.status);
       const response = await fetch(`${ITEMS_API_URL}?${params.toString()}`);
       const result = await response.json();
       if (!result.success) return { success: false, message: result.message || 'Elanlar yüklənə bilmədi.' };
@@ -108,6 +109,43 @@ const listingsService = {
     } catch (error) {
       return { success: false, message: 'Server bağlantı xətası.' };
     }
+  },
+  async deleteListing(id) {
+    try {
+      const token = storage.getToken();
+      const response = await fetch(`${ITEMS_API_URL}/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      const result = await response.json();
+      if (!result.success) return { success: false, message: result.message || 'Elan silinə bilmədi.' };
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: 'Server bağlantı xətası.' };
+    }
+  },
+  async updateListing(id, data) {
+    try {
+      const token = storage.getToken();
+      const response = await fetch(`${ITEMS_API_URL}/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(data)
+      });
+      const result = await response.json();
+      if (!result.success) {
+        const detail = Array.isArray(result.errors) ? result.errors.map(e => e.message).join(' ') : '';
+        return { success: false, message: detail || result.message || 'Elan yenilənə bilmədi.' };
+      }
+      return { success: true, data: mapItemFromApi(result.data) };
+    } catch (error) {
+      return { success: false, message: 'Server bağlantı xətası.' };
+    }
   }
 };
 
@@ -124,7 +162,27 @@ const storage = {
     localStorage.removeItem('user_email');
   },
   getTheme: () => localStorage.getItem('theme') || 'light',
-  setTheme: (theme) => localStorage.setItem('theme', theme)
+  setTheme: (theme) => localStorage.setItem('theme', theme),
+  getFavorites: () => {
+    try {
+      return JSON.parse(localStorage.getItem('favorites') || '[]');
+    } catch (e) {
+      return [];
+    }
+  },
+  isFavorite: (id) => storage.getFavorites().includes(Number(id)),
+  toggleFavorite: (id) => {
+    id = Number(id);
+    const favs = storage.getFavorites();
+    const idx = favs.indexOf(id);
+    if (idx >= 0) {
+      favs.splice(idx, 1);
+    } else {
+      favs.push(id);
+    }
+    localStorage.setItem('favorites', JSON.stringify(favs));
+    return favs.includes(id);
+  }
 };
 
 const validators = {
@@ -151,6 +209,8 @@ const router = {
       if (viewName === 'listings') listingsController.init();
       if (viewName === 'profile') profileController.init();
       if (viewName === 'listing-detail' && params) listingsController.loadDetail(params);
+      if (viewName === 'favorites') favoritesController.init();
+      if (viewName === 'post-listing') postController.enter(params);
       
       const token = storage.getToken();
       document.getElementById('main-nav').style.display = token ? 'flex' : 'none';
@@ -411,19 +471,28 @@ const listingsController = {
   },
   createCardHtml(l) {
     const mainImg = (l.images && l.images.length > 0) ? l.images[0] : 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=500&auto=format&fit=crop&q=60';
+    const isFav = storage.isFavorite(l.id);
+    const isSold = l.status === 'SOLD';
     return `
-      <div class="listing-card" onclick="router.navigate('listing-detail', ${l.id})">
+      <div class="listing-card ${isSold ? 'is-sold' : ''}" onclick="router.navigate('listing-detail', ${l.id})">
+        <button class="fav-btn ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); listingsController.toggleFavorite(${l.id}, this)" aria-label="Favoritə əlavə et">${isFav ? '❤️' : '🤍'}</button>
+        ${isSold ? '<span class="sold-badge">SATILDI</span>' : ''}
         <img class="listing-card-img" src="${mainImg}" alt="${l.title}" loading="lazy">
         <div class="listing-card-content">
           <div class="listing-card-price">${l.price} AZN</div>
           <div class="listing-card-title">${l.title}</div>
           <div class="listing-card-meta">
-            <span>${l.location}</span>
             <span>${l.time}</span>
           </div>
         </div>
       </div>
     `;
+  },
+  toggleFavorite(id, btnEl) {
+    const nowFav = storage.toggleFavorite(id);
+    btnEl.classList.toggle('active', nowFav);
+    btnEl.innerText = nowFav ? '❤️' : '🤍';
+    if (router.currentView === 'favorites') favoritesController.init();
   },
   async loadDetail(id) {
     const container = document.getElementById('listing-detail-view');
@@ -433,6 +502,9 @@ const listingsController = {
     if (res.success) {
       const l = res.data;
       const images = l.images || [];
+      const currentEmail = storage.getUserEmail();
+      const isOwner = !!currentEmail && l.owner === currentEmail;
+      const cleanPhone = (l.phone || '').replace(/[^\d+]/g, '');
       
       let galleryHtml = '';
       if (images.length > 0) {
@@ -461,15 +533,21 @@ const listingsController = {
             <div class="detail-price">${l.price} AZN</div>
             <div style="font-size: 0.9rem; color: var(--text-muted);">
               <p>Kateqoriya: <strong>${this.categories.find(c => c.id === l.category)?.label || l.category}</strong></p>
-              <p>Məkan: ${l.location}</p>
               <p>Tarix: ${l.time}</p>
             </div>
             <hr style="border:0; border-top:1px solid var(--border-color)">
             <div>
               <p style="font-weight:600; font-size:0.875rem; color:var(--text-muted)">ELAN SAHİBİ</p>
               <p style="font-size:1.1rem; font-weight:700; margin-bottom:var(--sp-sm);">${l.owner}</p>
-              <a href="mailto:${l.owner}" class="btn btn-primary" style="width:100%;">E-poçt Göndər</a>
+              <a href="tel:${cleanPhone}" class="btn btn-primary" style="width:100%; margin-bottom:var(--sp-sm);">📞 Zəng Et (${l.phone})</a>
+              <a href="https://wa.me/${cleanPhone.replace('+', '')}" target="_blank" rel="noopener" class="btn btn-secondary" style="width:100%;">💬 WhatsApp</a>
             </div>
+            ${isOwner ? `
+            <div style="margin-top:var(--sp-md); display:flex; flex-direction:column; gap:var(--sp-sm);">
+              <button class="btn btn-secondary" style="width:100%;" onclick="router.navigate('post-listing', ${l.id})">✏️ Redaktə Et</button>
+              ${l.status !== 'SOLD' ? `<button class="btn btn-secondary" style="width:100%;" onclick="listingsController.markSold(${l.id})">✅ Satıldı olaraq işarələ</button>` : `<p style="text-align:center; font-weight:700; color:var(--danger);">Bu elan satılıb</p>`}
+              <button class="btn btn-primary" style="width:100%; background-color:var(--danger);" onclick="listingsController.deleteListing(${l.id})">🗑️ Elanı Sil</button>
+            </div>` : ''}
           </div>
         </div>
       `;
@@ -486,6 +564,27 @@ const listingsController = {
     document.getElementById('detail-main-view').src = src;
     document.querySelectorAll('.thumb-img').forEach(t => t.classList.remove('active'));
     thumb.classList.add('active');
+  },
+  async deleteListing(id) {
+    if (!confirm('Bu elanı silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.')) return;
+
+    const res = await listingsService.deleteListing(id);
+    if (res.success) {
+      ui.showToast('Elan silindi.', 'success');
+      router.navigate('listings');
+    } else {
+      ui.showToast(res.message || 'Elan silinə bilmədi.', 'danger');
+    }
+  },
+  async markSold(id) {
+    if (!confirm('Bu elanı satılmış olaraq işarələmək istəyirsiniz? Elan artıq ümumi siyahıda görünməyəcək.')) return;
+    const res = await listingsService.updateListing(id, { status: 'SOLD' });
+    if (res.success) {
+      ui.showToast('Elan satılmış olaraq işarələndi.', 'success');
+      this.loadDetail(id);
+    } else {
+      ui.showToast(res.message || 'Əməliyyat uğursuz oldu.', 'danger');
+    }
   }
 };
 
@@ -502,11 +601,16 @@ const profileController = {
     const grid = document.getElementById('user-listings-grid');
     ui.renderSkeletonGrid(grid);
     
-    const res = await listingsService.getListings();
+    const res = await listingsService.getListings({ status: 'ALL' });
     const userItems = res.data.filter(item => item.owner === email);
     
     if (userItems.length > 0) {
-      grid.innerHTML = userItems.map(l => listingsController.createCardHtml(l)).join('');
+      grid.innerHTML = userItems.map(l => `
+        <div style="position:relative;">
+          ${listingsController.createCardHtml(l)}
+          <button class="btn btn-secondary" style="position:absolute; top:8px; right:8px; padding:4px 8px; background-color:var(--danger); color:#fff;" onclick="event.stopPropagation(); profileController.deleteOwn(${l.id})" aria-label="Elanı sil">🗑️</button>
+        </div>
+      `).join('');
     } else {
       grid.innerHTML = `
         <div class="state-container" style="grid-column: 1/-1;">
@@ -515,11 +619,54 @@ const profileController = {
         </div>
       `;
     }
+  },
+  async deleteOwn(id) {
+    if (!confirm('Bu elanı silmək istədiyinizə əminsiniz?')) return;
+    const res = await listingsService.deleteListing(id);
+    if (res.success) {
+      ui.showToast('Elan silindi.', 'success');
+      this.loadUserListings(storage.getUserEmail());
+    } else {
+      ui.showToast(res.message || 'Elan silinə bilmədi.', 'danger');
+    }
+  }
+};
+
+const favoritesController = {
+  async init() {
+    const grid = document.getElementById('favorites-grid');
+    ui.renderSkeletonGrid(grid);
+
+    const favIds = storage.getFavorites();
+    if (favIds.length === 0) {
+      grid.innerHTML = `
+        <div class="state-container" style="grid-column: 1/-1;">
+          <p class="state-title">Hələ heç bir elanı favoritə əlavə etməmisiniz.</p>
+          <button class="btn btn-primary" onclick="router.navigate('listings')">Elanlara bax</button>
+        </div>
+      `;
+      return;
+    }
+
+    const res = await listingsService.getListings({ status: 'ALL' });
+    if (res.success) {
+      const favItems = res.data.filter(item => favIds.includes(item.id));
+      grid.innerHTML = favItems.length > 0
+        ? favItems.map(l => listingsController.createCardHtml(l)).join('')
+        : `
+          <div class="state-container" style="grid-column: 1/-1;">
+            <p class="state-title">Favorit elanlar tapılmadı.</p>
+          </div>
+        `;
+    } else {
+      grid.innerHTML = `<div class="state-container" style="grid-column: 1/-1;"><p class="state-title">Yüklənə bilmədi.</p></div>`;
+    }
   }
 };
 
 const postController = {
   selectedImagesBase64: [],
+  editingId: null,
   init() {
     const form = document.getElementById('post-form');
     if(form) form.onsubmit = this.handleSubmit.bind(this);
@@ -527,38 +674,75 @@ const postController = {
     const imageInput = document.getElementById('post-images');
     if(imageInput) imageInput.onchange = this.handleImageSelection.bind(this);
   },
-  async handleImageSelection(e) {
-    const files = Array.from(e.target.files);
-    const previewContainer = document.getElementById('image-preview-container');
-    const errorEl = document.getElementById('post-images-error');
-    
-    this.selectedImagesBase64 = [];
-    previewContainer.innerHTML = '';
-    errorEl.style.display = 'none';
+  async enter(id) {
+    const form = document.getElementById('post-form');
+    if (form) form.querySelectorAll('.form-error').forEach(err => err.style.display = 'none');
 
-    if (files.length > 20) {
-      errorEl.innerText = "Maksimum 20 şəkil seçə bilərsiniz.";
-      errorEl.style.display = 'block';
-      previewContainer.style.display = 'none';
-      e.target.value = ''; 
-      return;
+    if (id) {
+      this.editingId = id;
+      document.getElementById('post-listing-title').innerText = 'Elanı Redaktə Et';
+      document.getElementById('post-submit-btn').innerText = 'Yenilə';
+
+      const res = await listingsService.getListingById(id);
+      if (!res.success) {
+        ui.showToast('Elan tapılmadı.', 'danger');
+        router.navigate('listings');
+        return;
+      }
+      const l = res.data;
+      document.getElementById('post-title').value = l.title || '';
+      document.getElementById('post-category').value = l.category || '';
+      document.getElementById('post-price').value = l.price || '';
+      document.getElementById('post-description').value = l.description || '';
+      document.getElementById('post-phone').value = l.phone || '';
+      this.selectedImagesBase64 = [...(l.images || [])];
+      this.renderPreviews();
+    } else {
+      this.editingId = null;
+      document.getElementById('post-listing-title').innerText = 'Yeni Elan Yerləşdir';
+      document.getElementById('post-submit-btn').innerText = 'Dərc et';
+      if (form) form.reset();
+      this.selectedImagesBase64 = [];
+      this.renderPreviews();
     }
-
-    if (files.length > 0) {
+  },
+  renderPreviews() {
+    const previewContainer = document.getElementById('image-preview-container');
+    if (this.selectedImagesBase64.length > 0) {
       previewContainer.style.display = 'flex';
+      previewContainer.innerHTML = this.selectedImagesBase64.map((src, idx) => `
+        <div class="preview-img-wrap">
+          <img src="${src}" class="preview-img">
+          <button type="button" class="preview-img-remove" onclick="postController.removeImage(${idx})" aria-label="Şəkli sil">×</button>
+        </div>
+      `).join('');
     } else {
       previewContainer.style.display = 'none';
+      previewContainer.innerHTML = '';
+    }
+  },
+  removeImage(idx) {
+    this.selectedImagesBase64.splice(idx, 1);
+    this.renderPreviews();
+  },
+  async handleImageSelection(e) {
+    const files = Array.from(e.target.files);
+    const errorEl = document.getElementById('post-images-error');
+    errorEl.style.display = 'none';
+
+    if (this.selectedImagesBase64.length + files.length > 20) {
+      errorEl.innerText = "Maksimum 20 şəkil seçə bilərsiniz.";
+      errorEl.style.display = 'block';
+      e.target.value = '';
+      return;
     }
 
     for (const file of files) {
       const base64 = await this.fileToBase64(file);
       this.selectedImagesBase64.push(base64);
-      
-      const img = document.createElement('img');
-      img.src = base64;
-      img.className = 'preview-img';
-      previewContainer.appendChild(img);
     }
+    e.target.value = '';
+    this.renderPreviews();
   },
   fileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -574,7 +758,7 @@ const postController = {
     const category = document.getElementById('post-category').value;
     const price = parseFloat(document.getElementById('post-price').value);
     const description = document.getElementById('post-description').value.trim();
-    const location = document.getElementById('post-location').value.trim();
+    const phone = document.getElementById('post-phone').value.trim();
     const errorImg = document.getElementById('post-images-error');
 
     let valid = true;
@@ -607,32 +791,37 @@ const postController = {
       document.getElementById('post-description').nextElementSibling.style.display = 'block';
       valid = false;
     }
-    if (!location) {
-      document.getElementById('post-location').nextElementSibling.style.display = 'block';
+    const azPhoneRegex = /^(\+?994|0)(10|50|51|55|60|70|77|99)\d{7}$/;
+    if (!azPhoneRegex.test(phone.replace(/[\s()-]/g, ''))) {
+      document.getElementById('post-phone').nextElementSibling.style.display = 'block';
       valid = false;
     }
 
     if (!valid) return;
 
-    const res = await listingsService.createListing({ 
+    const payload = {
       title, 
       category, 
       price, 
       description, 
-      location, 
+      phone, 
       images: this.selectedImagesBase64 
-    });
+    };
+
+    const res = this.editingId
+      ? await listingsService.updateListing(this.editingId, payload)
+      : await listingsService.createListing(payload);
 
     if (res.success) {
-      ui.showToast('Elanınız uğurla yerləşdirildi!', 'success');
+      ui.showToast(this.editingId ? 'Elan yeniləndi!' : 'Elanınız uğurla yerləşdirildi!', 'success');
+      const wasEditing = this.editingId;
       document.getElementById('post-form').reset();
-      const previewContainer = document.getElementById('image-preview-container');
-      previewContainer.innerHTML = '';
-      previewContainer.style.display = 'none';
       this.selectedImagesBase64 = [];
-      router.navigate('listings');
+      this.renderPreviews();
+      this.editingId = null;
+      router.navigate(wasEditing ? 'listing-detail' : 'listings', wasEditing ? res.data.id : null);
     } else {
-      ui.showToast(res.message || 'Elan yerləşdirilə bilmədi.', 'danger');
+      ui.showToast(res.message || (this.editingId ? 'Elan yenilənə bilmədi.' : 'Elan yerləşdirilə bilmədi.'), 'danger');
     }
   }
 };

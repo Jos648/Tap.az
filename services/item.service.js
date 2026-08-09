@@ -15,7 +15,7 @@ async function createItem(data, ownerId) {
       description: data.description,
       price: data.price,
       category: data.category,
-      location: data.location,
+      phone: data.phone,
       images: data.images ?? [],
       status: data.status, // undefined -> Prisma schema default-u (ACTIVE) tətbiq olunur
       ownerId: ownerId ?? null,
@@ -42,7 +42,7 @@ async function listItems(query) {
 
   const filterClause = {
     ...(category ? { category } : {}),
-    ...(status ? { status } : { status: 'ACTIVE' }), // default olaraq yalnız aktiv elanlar göstərilir
+    ...(status ? (status === 'ALL' ? {} : { status }) : { status: 'ACTIVE' }), // default olaraq yalnız aktiv elanlar göstərilir
     ...(minPrice !== undefined || maxPrice !== undefined
       ? {
           price: {

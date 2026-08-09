@@ -1,5 +1,10 @@
 const { z } = require('zod');
 
+// Azərbaycan mobil nömrə formatı: +994 50 123 45 67 / 0501234567 / 994501234567
+const AZ_PHONE_REGEX = /^(\+?994|0)(10|50|51|55|60|70|77|99)\d{7}$/;
+
+const normalizePhone = (val) => (typeof val === 'string' ? val.replace(/[\s()-]/g, '') : val);
+
 // prisma/schema.prisma `enum ItemStatus` ilə sync saxlanılmalıdır.
 const ITEM_STATUS_VALUES = ['DRAFT', 'ACTIVE', 'INACTIVE', 'SOLD'];
 
@@ -33,11 +38,12 @@ const createItemSchema = z.object({
     .trim()
     .min(1, 'Kateqoriya seçilməlidir.')
     .max(100, 'Kateqoriya adı çox uzundur.'),
-  location: z
-    .string({ required_error: 'Məkan tələb olunur.' })
-    .trim()
-    .min(1, 'Məkan qeyd edilməlidir.')
-    .max(200, 'Məkan adı çox uzundur.'),
+  phone: z.preprocess(
+    normalizePhone,
+    z
+      .string({ required_error: 'Telefon nömrəsi tələb olunur.' })
+      .regex(AZ_PHONE_REGEX, 'Düzgün Azərbaycan mobil nömrəsi daxil edin. Məs. +994501234567')
+  ),
   images: z
     .array(z.string(), { required_error: 'Şəkillər tələb olunur.' })
     .min(MIN_IMAGES, `Ən azı ${MIN_IMAGES} şəkil əlavə edin.`)
@@ -63,7 +69,7 @@ const toNumber = (val) => {
 const queryItemsSchema = z.object({
   search: z.string().trim().max(200).optional(),
   category: z.string().trim().max(100).optional(),
-  status: z.enum(ITEM_STATUS_VALUES).optional(),
+  status: z.enum([...ITEM_STATUS_VALUES, 'ALL']).optional(),
   minPrice: z.preprocess(toNumber, z.number().nonnegative().optional()),
   maxPrice: z.preprocess(toNumber, z.number().nonnegative().optional()),
   page: z.preprocess(toNumber, z.number().int().positive().optional().default(DEFAULT_PAGE)),

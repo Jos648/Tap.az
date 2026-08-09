@@ -12,6 +12,7 @@
     <a href="#" class="navbar-brand" onclick="router.navigate('listings')">TapAl</a>
     <div class="navbar-actions">
       <button class="btn btn-secondary" onclick="router.navigate('post-listing')" aria-label="Elan Yerləşdir"><span class="btn-label">+ Elan Yerləşdir</span><span class="btn-icon" aria-hidden="true">＋</span></button>
+      <button class="btn btn-secondary" onclick="router.navigate('favorites')" aria-label="Favoritlər">❤️</button>
       <button class="btn btn-secondary" onclick="router.navigate('profile')" aria-label="Profil">Profil</button>
       <button class="btn btn-secondary" onclick="router.navigate('settings')" aria-label="Ayarlar">⚙️</button>
     </div>
@@ -101,8 +102,13 @@
 
   <section data-view="listing-detail" id="listing-detail-view"></section>
 
+  <section data-view="favorites">
+    <h1 style="font-size: 1.75rem; font-weight: 700; margin-bottom: var(--sp-lg);">❤️ Favoritlər</h1>
+    <div class="listing-grid" id="favorites-grid"></div>
+  </section>
+
   <section data-view="post-listing">
-    <h1 style="font-size: 1.75rem; font-weight: 700; margin-bottom: var(--sp-lg);">Yeni Elan Yerləşdir</h1>
+    <h1 id="post-listing-title" style="font-size: 1.75rem; font-weight: 700; margin-bottom: var(--sp-lg);">Yeni Elan Yerləşdir</h1>
     <form id="post-form" novalidate style="background-color: var(--bg-surface); padding: var(--sp-lg); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
       <div class="form-group">
         <label for="post-title">Elanın Başlığı</label>
@@ -146,11 +152,11 @@
         <div class="form-error">Təsvir çox qısadır (min. 20 simvol).</div>
       </div>
       <div class="form-group">
-        <label for="post-location">Şəhər / Region</label>
-        <input type="text" id="post-location" class="form-control" placeholder="Məs. Bakı" required>
-        <div class="form-error">Məkan daxil edin.</div>
+        <label for="post-phone">Əlaqə Nömrəsi</label>
+        <input type="tel" id="post-phone" class="form-control" placeholder="+994 50 123 45 67" required>
+        <div class="form-error">Düzgün Azərbaycan mobil nömrəsi daxil edin.</div>
       </div>
-      <button type="submit" class="btn btn-primary" style="width: 100%;">Dərc et</button>
+      <button type="submit" class="btn btn-primary" id="post-submit-btn" style="width: 100%;">Dərc et</button>
     </form>
   </section>
 
