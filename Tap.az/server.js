@@ -2,18 +2,16 @@ const path = require('path');
 const fs = require('fs');
 
 // ==== ENV YÜKLƏMƏ ====
-// Runtime YALNIZ ".env" faylından oxumalıdır. ".env.example" yalnız template-dir
-// və heç vaxt runtime konfiqurasiyası kimi istifadə edilməməlidir.
+// Lokal/development mühitində ".env" faylından oxunur. Vercel kimi platformalarda
+// mühit dəyişənləri fayl kimi deploy edilmir, birbaşa process.env-ə inject olunur —
+// ona görə fayl yoxdursa server-i dayandırmırıq, sadəcə mövcuddursa yükləyirik.
 const ENV_PATH = path.resolve(__dirname, '.env');
 
-if (!fs.existsSync(ENV_PATH)) {
-  console.error('[env] ERROR: .env file was not found.');
-  console.error(`[env] Gözlənilən yol: ${ENV_PATH}`);
-  console.error('[env] ".env.example" faylını ".env" adı ilə kopyalayıb real dəyərləri doldurun.');
-  process.exit(1);
+if (fs.existsSync(ENV_PATH)) {
+  require('dotenv').config({ path: ENV_PATH });
+} else {
+  console.log('[env] .env faylı tapılmadı, mühit dəyişənləri platform tərəfindən (məs. Vercel) təmin olunduğu güman edilir.');
 }
-
-require('dotenv').config({ path: ENV_PATH });
 
 const express = require('express');
 const cors = require('cors');
