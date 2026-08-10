@@ -1,5 +1,7 @@
 const { z } = require('zod');
 
+const stripTags = (val) => (typeof val === 'string' ? val.replace(/[<>]/g, '') : val);
+
 // Yalnız @gmail.com ünvanlarına icazə verilir (frontend qaydası ilə uyğunlaşdırılıb)
 const gmailSchema = z
   .string({ required_error: 'E-poçt tələb olunur.' })
@@ -15,7 +17,8 @@ const registerSchema = z.object({
     .string({ required_error: 'İstifadəçi adı tələb olunur.' })
     .trim()
     .min(3, 'İstifadəçi adı ən azı 3 simvol olmalıdır.')
-    .max(30, 'İstifadəçi adı 30 simvoldan çox ola bilməz.'),
+    .max(30, 'İstifadəçi adı 30 simvoldan çox ola bilməz.')
+    .transform(stripTags),
   email: gmailSchema,
   password: z
     .string({ required_error: 'Şifrə tələb olunur.' })

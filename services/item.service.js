@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const ApiError = require('../utils/apiError');
 
-const ownerSelect = { select: { id: true, username: true, email: true } };
+const ownerSelect = { select: { id: true, username: true, email: true, isVerified: true } };
 
 /**
  * Yeni elan yaradır. `ownerId` ayrıca ötürülür (client body-də ownerId-ə
@@ -17,6 +17,7 @@ async function createItem(data, ownerId) {
       category: data.category,
       phone: data.phone,
       images: data.images ?? [],
+      videos: data.videos ?? [],
       status: data.status, // undefined -> Prisma schema default-u (ACTIVE) tətbiq olunur
       ownerId: ownerId ?? null,
     },
@@ -42,7 +43,7 @@ async function listItems(query) {
 
   const filterClause = {
     ...(category ? { category } : {}),
-    ...(status ? (status === 'ALL' ? {} : { status }) : { status: 'ACTIVE' }), // default olaraq yalnız aktiv elanlar göstərilir
+    ...(status ? { status } : { status: 'ACTIVE' }), // default olaraq yalnız aktiv elanlar göstərilir
     ...(minPrice !== undefined || maxPrice !== undefined
       ? {
           price: {
@@ -85,6 +86,19 @@ async function getItemById(id) {
 }
 
 /**
+ * Elanın detal səhifəsi açılanda çağırılır: elanı qaytarır və eyni zamanda
+ * `viewCount`-u 1 artırır (baxış sayğacı).
+ */
+async function getItemByIdForView(id) {
+  const item = await getItemById(id);
+  return prisma.item.update({
+    where: { id },
+    data: { viewCount: { increment: 1 } },
+    include: { owner: ownerSelect },
+  });
+}
+
+/**
  * Elanı qismən yeniləyir, sahiblik yoxlaması ilə (requireAuth vasitəsilə
  * bütün item route-ları qorunduğu üçün `requester` həmişə mövcuddur).
  */
@@ -123,6 +137,7 @@ module.exports = {
   createItem,
   listItems,
   getItemById,
+  getItemByIdForView,
   updateItem,
   deleteItem,
 };

@@ -54,7 +54,7 @@ async function login(req, res, next) {
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(401).json({ success: false, message: 'Bu Gmail ünvanı ilə istifadəçi tapılmadı.' });
+      return res.status(401).json({ success: false, message: 'E-poçt və ya şifrə yanlışdır.' });
     }
 
     if (!user.isVerified) {
@@ -63,7 +63,7 @@ async function login(req, res, next) {
 
     const passwordMatches = await bcrypt.compare(password, user.password);
     if (!passwordMatches) {
-      return res.status(401).json({ success: false, message: 'Şifrə yanlışdır.' });
+      return res.status(401).json({ success: false, message: 'E-poçt və ya şifrə yanlışdır.' });
     }
 
     const token = signToken({ id: user.id, email: user.email, username: user.username });

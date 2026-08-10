@@ -19,6 +19,7 @@ const helmet = require('helmet');
 
 const authRoutes = require('./routes/auth.routes');
 const itemRoutes = require('./routes/item.routes');
+const reviewRoutes = require('./routes/review.routes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 // ==== ENV VALIDATION ====
@@ -50,9 +51,26 @@ REQUIRED_ENV_VARS.forEach((key) => console.log(`[env] ${key}: configured`));
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Frontend ilə eyni serverdən statik fayl servis edildiyi üçün CSP-ni sadələşdiririk
-// (inline onclick handler-ləri və inline style atributları HTML-də istifadə olunur)
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+// Frontend ilə eyni serverdən statik fayl servis edildiyi üçün CSP elə tənzimlənir ki,
+// inline onclick handler-ləri və inline style atributları işləsin, amma xarici mənbələrdən
+// skript/iframe yüklənməsi və s. yenə də bloklansın (XSS-ə qarşı dərinləşdirilmiş müdafiə).
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      mediaSrc: ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+}));
 
 // CORS_ORIGINS .env-də veriləcək (vergüllə ayrılmış). Yoxdursa, development üçün fallback istifadə olunur
 // ki, mövcud frontend işləməyi dayandırmasın.
@@ -71,6 +89,7 @@ app.use(express.json({ limit: '50mb' })); // elanlarda 3-20 base64 şəkil gönd
 // ==== API ROUTES ====
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Server sağlamdır.', timestamp: new Date().toISOString() });
@@ -95,6 +114,13 @@ app.get('*', (req, res) => {
 // Mərkəzləşdirilmiş xəta idarəetməsi (həmişə ən sonda olmalıdır)
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`✅ Server ${PORT} portunda aktivdir: http://localhost:${PORT}`);
-});
+// Vercel serverless funksiya kimi import edildikdə app.listen() lazım deyil —
+// Vercel öz daxili handler-i ilə "app"-i birbaşa çağırır.
+// Lokalda "node server.js" ilə işə salındıqda isə normal portu dinləyir.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`✅ Server ${PORT} portunda aktivdir: http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
