@@ -49,6 +49,11 @@ if (missingOptional.length > 0) {
 REQUIRED_ENV_VARS.forEach((key) => console.log(`[env] ${key}: configured`));
 
 const app = express();
+
+// Vercel (və digər reverse proxy-lər) arxasında işlədiyi üçün X-Forwarded-For
+// başlığına etibar edilir ki, express-rate-limit istifadəçinin real IP-sini
+// düzgün tanısın (əks halda hamı eyni IP kimi qəbul edilib səhv bloklana bilər).
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 
 // Frontend ilə eyni serverdən statik fayl servis edildiyi üçün CSP elə tənzimlənir ki,
