@@ -58,4 +58,30 @@ async function sendOtpEmail(toEmail, otpCode) {
   return transporter.sendMail(mailOptions);
 }
 
-module.exports = { transporter, sendOtpEmail };
+async function sendPasswordResetEmail(toEmail, otpCode) {
+  if (!mailerEnabled) {
+    throw new Error('Şifrə bərpası e-poçt funksiyası deaktivdir: EMAIL_USER / EMAIL_PASS .env-də təyin olunmayıb.');
+  }
+
+  const mailOptions = {
+    from: EMAIL_FROM || `"TapAl" <${EMAIL_USER}>`,
+    to: toEmail,
+    subject: 'TapAl - Şifrə Bərpası',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #eee; border-radius: 8px;">
+        <h2 style="color: #111;">Şifrə Bərpası</h2>
+        <p>Salam,</p>
+        <p>Şifrənizi yeniləmək üçün aşağıdakı təsdiq kodundan istifadə edin:</p>
+        <div style="font-size: 32px; font-weight: 700; letter-spacing: 8px; text-align: center; margin: 24px 0; color: #111;">
+          ${otpCode}
+        </div>
+        <p style="color: #666; font-size: 14px;">Bu kod 5 dəqiqə ərzində etibarlıdır. Əgər bu tələbi siz göndərməmisinizsə, bu e-poçtu nəzərə almayın — şifrəniz dəyişməyəcək.</p>
+        <p style="color: #666; font-size: 14px;">TapAl komandası</p>
+      </div>
+    `,
+  };
+
+  return transporter.sendMail(mailOptions);
+}
+
+module.exports = { transporter, sendOtpEmail, sendPasswordResetEmail };

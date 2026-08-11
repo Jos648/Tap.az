@@ -14,6 +14,8 @@ const {
   loginSchema,
   verifyOtpSchema,
   resendOtpSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } = require('../utils/validators');
 
 // POST /api/auth/register  -> Qeydiyyat, OTP göndərilir
@@ -30,5 +32,11 @@ router.post('/resend-otp', otpRequestLimiter, validate(resendOtpSchema), authCon
 
 // GET /api/auth/me  -> Cari istifadəçinin məlumatları (qorunan endpoint)
 router.get('/me', requireAuth, authController.me);
+
+// POST /api/auth/forgot-password  -> Şifrə bərpası üçün OTP göndərilir
+router.post('/forgot-password', otpRequestLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
+
+// POST /api/auth/reset-password  -> OTP təsdiqi ilə yeni şifrə təyin edilir
+router.post('/reset-password', otpVerifyLimiter, validate(resetPasswordSchema), authController.resetPassword);
 
 module.exports = router;

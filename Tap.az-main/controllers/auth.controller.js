@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
-const { sendOtpEmail } = require('../config/mailer');
+const { sendOtpEmail, sendPasswordResetEmail } = require('../config/mailer');
 const { signToken } = require('../utils/jwt');
 const { generateOtpCode, getOtpExpiry, getOtpResendAvailableAt } = require('../utils/otp');
 
@@ -175,4 +175,79 @@ async function me(req, res, next) {
   }
 }
 
-module.exports = { register, login, verifyOtp, resendOtp, me };
+// POST /api/auth/forgot-password
+async function forgotPassword(req, res, next) {
+  try {
+    const { email } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // İstifadəçi mövcud olmasa da, cavab eynidir — email enumeration-un qarşısı alınır.
+    const genericResponse = { success: true, message: 'Əgər bu ünvanla hesab mövcuddursa, təsdiq kodu göndərildi.' };
+
+    if (!user || !user.isVerified) {
+      return res.json(genericResponse);
+    }
+
+    if (user.resetOtpResendAt && new Date() < new Date(user.resetOtpResendAt)) {
+      return res.json(genericResponse);
+    }
+
+    const resetOtpCode = generateOtpCode();
+    const resetOtpExpiresAt = getOtpExpiry();
+    const resetOtpResendAt = getOtpResendAvailableAt();
+
+    await prisma.user.update({
+      where: { email },
+      data: { resetOtpCode, resetOtpExpiresAt, resetOtpResendAt },
+    });
+
+    try {
+      await sendPasswordResetEmail(email, resetOtpCode);
+    } catch (mailErr) {
+      console.error('[auth.forgotPassword] E-poçt göndərilə bilmədi:', mailErr.message);
+      return res.status(502).json({ success: false, message: 'E-poçt göndərilə bilmədi. Zəhmət olmasa yenidən cəhd edin.' });
+    }
+
+    return res.json(genericResponse);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/auth/reset-password
+async function resetPassword(req, res, next) {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'İstifadəçi tapılmadı.' });
+    }
+
+    if (!user.resetOtpCode || !user.resetOtpExpiresAt) {
+      return res.status(400).json({ success: false, message: 'Aktiv təsdiq kodu tapılmadı. Yenidən tələb edin.' });
+    }
+
+    if (new Date() > new Date(user.resetOtpExpiresAt)) {
+      return res.status(400).json({ success: false, message: 'Kodun vaxtı bitib. Yenidən tələb edin.' });
+    }
+
+    if (user.resetOtpCode !== code) {
+      return res.status(400).json({ success: false, message: 'Kod yanlışdır.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+
+    await prisma.user.update({
+      where: { email },
+      data: { password: hashedPassword, resetOtpCode: null, resetOtpExpiresAt: null, resetOtpResendAt: null },
+    });
+
+    return res.json({ success: true, message: 'Şifrəniz uğurla yeniləndi. Zəhmət olmasa yeni şifrə ilə daxil olun.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { register, login, verifyOtp, resendOtp, me, forgotPassword, resetPassword };

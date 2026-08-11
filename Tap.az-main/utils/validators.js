@@ -42,6 +42,21 @@ const resendOtpSchema = z.object({
   email: gmailSchema,
 });
 
+const forgotPasswordSchema = z.object({
+  email: gmailSchema,
+});
+
+const resetPasswordSchema = z.object({
+  email: gmailSchema,
+  code: z
+    .string({ required_error: 'Kod tələb olunur.' })
+    .trim()
+    .regex(/^\d{6}$/, 'Düzgün 6 rəqəmli kod daxil edin.'),
+  newPassword: z
+    .string({ required_error: 'Yeni şifrə tələb olunur.' })
+    .min(6, 'Şifrə ən azı 6 simvoldan ibarət olmalıdır.'),
+});
+
 function validate(schema) {
   return (req, res, next) => {
     const result = schema.safeParse(req.body);
@@ -59,5 +74,7 @@ module.exports = {
   loginSchema,
   verifyOtpSchema,
   resendOtpSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
   validate,
 };

@@ -42,6 +42,32 @@ const authService = {
     } catch (error) {
       return { success: false, message: 'Server bağlantı xətası.' };
     }
+  },
+
+  async forgotPassword(email) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      return await response.json();
+    } catch (error) {
+      return { success: false, message: 'Server bağlantı xətası.' };
+    }
+  },
+
+  async resetPassword(email, code, newPassword) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, newPassword })
+      });
+      return await response.json();
+    } catch (error) {
+      return { success: false, message: 'Server bağlantı xətası.' };
+    }
   }
 };
 
@@ -302,6 +328,8 @@ const authController = {
     document.getElementById('login-form').onsubmit = this.handleLogin.bind(this);
     document.getElementById('register-form').onsubmit = this.handleRegister.bind(this);
     document.getElementById('otp-form').onsubmit = this.handleOTPVerify.bind(this);
+    document.getElementById('forgot-password-form').onsubmit = this.handleForgotPassword.bind(this);
+    document.getElementById('reset-password-form').onsubmit = this.handleResetPassword.bind(this);
   },
 
   async handleLogin(e) {
@@ -448,6 +476,64 @@ const authController = {
     storage.clear();
     ui.showToast('Çıxış edildi.');
     router.navigate('login');
+  },
+
+  async handleForgotPassword(e) {
+    e.preventDefault();
+    const email = document.getElementById('forgot-email').value.trim();
+
+    if (!validators.email(email)) {
+      document.getElementById('forgot-email-error').style.display = 'block';
+      return;
+    } else {
+      document.getElementById('forgot-email-error').style.display = 'none';
+    }
+
+    const res = await authService.forgotPassword(email);
+    if (res.success) {
+      this.pendingEmail = email;
+      ui.showToast('Əgər bu ünvanla hesab mövcuddursa, kod göndərildi.', 'info');
+      router.navigate('reset-password');
+    } else {
+      ui.showToast(res.message || 'Xəta baş verdi.', 'danger');
+    }
+  },
+
+  async handleResetPassword(e) {
+    e.preventDefault();
+    const code = document.getElementById('reset-code').value.trim();
+    const newPassword = document.getElementById('reset-new-password').value;
+
+    let valid = true;
+    if (!validators.otp(code)) {
+      document.getElementById('reset-code-error').style.display = 'block';
+      valid = false;
+    } else {
+      document.getElementById('reset-code-error').style.display = 'none';
+    }
+
+    if (!validators.password(newPassword)) {
+      document.getElementById('reset-new-password-error').style.display = 'block';
+      valid = false;
+    } else {
+      document.getElementById('reset-new-password-error').style.display = 'none';
+    }
+
+    if (!valid) return;
+
+    if (!this.pendingEmail) {
+      ui.showToast('Zəhmət olmasa əvvəlcə e-poçt ünvanınızı daxil edin.', 'danger');
+      router.navigate('forgot-password');
+      return;
+    }
+
+    const res = await authService.resetPassword(this.pendingEmail, code, newPassword);
+    if (res.success) {
+      ui.showToast('Şifrəniz uğurla yeniləndi! İndi daxil ola bilərsiniz.', 'success');
+      router.navigate('login');
+    } else {
+      ui.showToast(res.message || 'Xəta baş verdi.', 'danger');
+    }
   }
 };
 

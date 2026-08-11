@@ -33,7 +33,10 @@
         </div>
         <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--sp-md);">Giriş</button>
       </form>
-      <p style="text-align: center; margin-top: var(--sp-lg); font-size: 0.9rem;">
+      <p style="text-align: center; margin-top: var(--sp-md); font-size: 0.9rem;">
+        <a href="#" style="color: var(--primary); font-weight: 600;" onclick="router.navigate('forgot-password')">Şifrəni unutmusunuz?</a>
+      </p>
+      <p style="text-align: center; margin-top: var(--sp-sm); font-size: 0.9rem;">
         Hesabınız yoxdur? <a href="#" style="color: var(--primary); font-weight: 600;" onclick="router.navigate('register')">Qeydiyyatdan keçin</a>
       </p>
     </div>
@@ -87,6 +90,51 @@
       </form>
       <p style="text-align: center; margin-top: var(--sp-lg); font-size: 0.9rem;">
         Kod gəlmədi? <button id="otp-resend-btn" style="color: var(--primary); font-weight: 600; border:none; background:none; padding:0; cursor:pointer;" onclick="authController.resendOTP()" disabled>Yenidən göndər (<span id="otp-cooldown">30</span>s)</button>
+      </p>
+    </div>
+  </section>
+
+  <section data-view="forgot-password">
+    <div class="auth-card">
+      <h1 class="auth-title">Şifrəni Bərpa Et</h1>
+      <p style="text-align: center; color: var(--text-muted); margin-bottom: var(--sp-md); font-size: 0.9rem;">
+        Qeydiyyatdan keçdiyiniz Gmail ünvanını daxil edin, sizə təsdiq kodu göndərəcəyik.
+      </p>
+      <form id="forgot-password-form" novalidate>
+        <div class="form-group">
+          <label for="forgot-email">Gmail ünvanı</label>
+          <input type="email" id="forgot-email" class="form-control" placeholder="nümunə@gmail.com" required>
+          <div class="form-error" id="forgot-email-error">Düzgün Gmail ünvanı daxil edin.</div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--sp-md);">Kod Göndər</button>
+      </form>
+      <p style="text-align: center; margin-top: var(--sp-lg); font-size: 0.9rem;">
+        <a href="#" style="color: var(--primary); font-weight: 600;" onclick="router.navigate('login')">Girişə qayıt</a>
+      </p>
+    </div>
+  </section>
+
+  <section data-view="reset-password">
+    <div class="auth-card">
+      <h1 class="auth-title">Yeni Şifrə Təyin Et</h1>
+      <p style="text-align: center; color: var(--text-muted); margin-bottom: var(--sp-md); font-size: 0.9rem;">
+        Gmail ünvanınıza göndərilən kodu və yeni şifrənizi daxil edin.
+      </p>
+      <form id="reset-password-form" novalidate>
+        <div class="form-group">
+          <label for="reset-code">Təsdiq Kodu</label>
+          <input type="text" id="reset-code" class="form-control" placeholder="123456" maxlength="6" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;" required>
+          <div class="form-error" id="reset-code-error">Düzgün 6 rəqəmli kod daxil edin.</div>
+        </div>
+        <div class="form-group">
+          <label for="reset-new-password">Yeni Şifrə</label>
+          <input type="password" id="reset-new-password" class="form-control" required>
+          <div class="form-error" id="reset-new-password-error">Şifrə ən azı 6 simvoldan ibarət olmalıdır.</div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--sp-md);">Şifrəni Yenilə</button>
+      </form>
+      <p style="text-align: center; margin-top: var(--sp-lg); font-size: 0.9rem;">
+        Kod gəlmədi? <a href="#" style="color: var(--primary); font-weight: 600;" onclick="router.navigate('forgot-password')">Yenidən tələb et</a>
       </p>
     </div>
   </section>
